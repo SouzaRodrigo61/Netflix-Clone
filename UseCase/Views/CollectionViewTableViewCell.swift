@@ -7,12 +7,18 @@
 
 import UIKit
 
-class CollectionViewTableViewCell: UITableViewCell {
+protocol CollectionViewTableViewCellDelegate: AnyObject {
+    func collectionViewTableViewCell(_ cell: CollectionViewTableViewCell, viewModel: TitlePreviewViewModel)
+}
 
+class CollectionViewTableViewCell: UITableViewCell {
+    
     static let identifier = "CollectionViewTableViewCell"
     
     private var titles: [Movie] = [Movie]()
-
+    
+    weak var delegate: CollectionViewTableViewCellDelegate?
+    
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         layout.itemSize = CGSize(width: 140, height: 200)
@@ -27,7 +33,7 @@ class CollectionViewTableViewCell: UITableViewCell {
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         contentView.backgroundColor = .systemPink
-            
+        
         contentView.addSubview(collectionView)
         
         collectionView.delegate = self
@@ -43,6 +49,10 @@ class CollectionViewTableViewCell: UITableViewCell {
         super.layoutSubviews()
         
         collectionView.frame = contentView.bounds
+    }
+    
+    private func downloadTitleAt(indexPath: IndexPath) {
+        print("Downloading \(titles[indexPath.row].original_title ?? "")")
     }
     
     public func configure(with titles: [Movie]) {
@@ -75,4 +85,50 @@ extension CollectionViewTableViewCell: UICollectionViewDelegate, UICollectionVie
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         return titles.count
     }
+    
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        collectionView.deselectItem(at: indexPath, animated: true)
+        
+        let title = titles[indexPath.row]
+        guard let titleName = title.original_title ?? title.original_name else {
+            return
+        }
+        
+        DispatchQueue.global(qos: .background).async {
+            APICaller.shared.getMovie(with: titleName + " trailer") { [weak self] result in
+                switch result {
+                case .success(let video):
+                    let title = self?.titles[indexPath.row]
+                    guard let titleOverView = title?.overview else { return }
+                    guard let strongSelf = self else { return }
+                    let viewModel = TitlePreviewViewModel(title: titleName, titleOverview: titleOverView, youtubeView: video)
+                    self?.delegate?.collectionViewTableViewCell(strongSelf, viewModel: viewModel)
+                    
+                case .failure(let error):
+                    DispatchQueue.main.async {
+                        print(error.localizedDescription)
+                    }
+                }
+            }
+        }
+    }
+    
+    func collectionView(_ collectionView: UICollectionView,
+                        contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+                        point: CGPoint) -> UIContextMenuConfiguration? {
+        let config = UIContextMenuConfiguration(
+            identifier: nil,
+            previewProvider: nil) { [weak self] _ in
+                let downloadAction = UIAction(title: "Download", subtitle: nil, image: nil, identifier: nil, discoverabilityTitle: nil, state: .off) { _ in
+                    /// TODO: Force unwrap is big mistaske
+                    self?.downloadTitleAt(indexPath: indexPaths.first!)
+                }
+                
+                return UIMenu(title: "", image: nil, identifier: nil, options: .displayInline, children: [downloadAction])
+            }
+        
+        return config
+    }
+    
+    
 }

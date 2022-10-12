@@ -26,7 +26,11 @@ class HomeViewController: UIViewController {
         "Top rated"
     ]
     
+    private var randomTrendingMovie: Movie?
+    
     // MARK: - Views
+    
+    private var headerView: HeroHeaderUIView?
     
     private let homeFeedTable: UITableView = {
         let table = UITableView(frame: .zero,
@@ -53,8 +57,29 @@ class HomeViewController: UIViewController {
         
         configureNavBar()
         
-        let headerView = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 450))
+        headerView = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 450))
         homeFeedTable.tableHeaderView = headerView
+        configureHeroHeaderView()
+    }
+    
+    private func configureHeroHeaderView() {
+        DispatchQueue.global().async {
+            APICaller.shared.getTrendingMovie { [weak self] result in
+                switch result {
+                case.success(let movie):
+                    DispatchQueue.main.async {
+                        let selectedTitle = movie.randomElement()
+                        
+                        self?.randomTrendingMovie = movie.randomElement()
+                        self?.headerView?.configure(with: TitleViewModel(titleName: selectedTitle?.original_title ?? "", posterURL: selectedTitle?.poster_path ?? ""))
+                    }
+                case .failure(let error):
+                    DispatchQueue.main.sync {
+                        print(error.localizedDescription)
+                    }
+                }
+            }
+        }
     }
     
     override func viewDidLayoutSubviews() {
@@ -62,9 +87,6 @@ class HomeViewController: UIViewController {
         
         homeFeedTable.frame = view.bounds
     }
-    
-
-    
     
     // MARK: - Privates
     
@@ -116,6 +138,8 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
         else {
             return UITableViewCell()
         }
+        
+        cell.delegate = self
         
         /// TODO: Segregate apicaller to other flow, It is bad
         switch indexPath.section {
@@ -245,5 +269,15 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
         
         // When scroll to bottom, navigation controller bar is hiden.
         navigationController?.navigationBar.transform = .init(translationX: 0, y: min(0, -offset))
+    }
+}
+
+extension HomeViewController: CollectionViewTableViewCellDelegate {
+    func collectionViewTableViewCell(_ cell: CollectionViewTableViewCell, viewModel: TitlePreviewViewModel) {
+        DispatchQueue.main.async { [weak self] in
+            let vc = TitlePreviewViewController()
+            vc.configure(with: viewModel)
+            self?.navigationController?.pushViewController(vc, animated: true)
+        }
     }
 }

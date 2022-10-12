@@ -11,7 +11,7 @@ class HeroHeaderUIView: UIView {
 
     private let heroImageView: UIImageView = {
         let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFill
+        imageView.contentMode = .scaleToFill
         imageView.clipsToBounds = true
         imageView.image = UIImage(named: "heroImage")
         return imageView
@@ -87,5 +87,15 @@ class HeroHeaderUIView: UIView {
         NSLayoutConstraint.activate(playButtonContraints)
         NSLayoutConstraint.activate(downloadButtonContraints)
     }
+    
+    // MARK: - public functions
+    public func configure(with model: TitleViewModel) {
+        guard let url = URL(string: "https://image.tmdb.org/t/p/w500/\(model.posterURL)") else { return }
+        
+        DispatchQueue.main.async {
+            self.heroImageView.sd_setImage(with: url, completed: nil)
+        }
+    }
+    
 
 }
